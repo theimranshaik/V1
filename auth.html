@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ruby - Authentication</title>
+  <!-- Google Fonts Import -->
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Global Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      border-radius: 0 !important;
+    }
+
+    /* Main App Styles */
+    body {
+      font-family: 'Instrument Sans', sans-serif;
+      background-color: #ffffff;
+      color: #333;
+      font-size: 20px;
+      padding: 8px;
+      padding-top: 8px;
+      padding-bottom: 24px;
+      overflow: hidden;
+      user-select: none;
+      touch-action: none;
+    }
+
+    @media (min-width: 640px) {
+      body {
+        font-size: 24px;
+      }
+    }
+
+    .blur-bg::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(8px);
+      background-color: rgba(0, 0, 0, 0.3);
+      z-index: -1;
+    }
+
+    .loading {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Header -->
+  <header class="fixed top-2 left-2 right-2 z-50 border px-4 py-2 flex justify-between items-center bg-white/80 backdrop-blur-sm border-gray-300">
+    <div class="font-semibold uppercase tracking-widest">Ruby</div>
+  </header>
+
+  <!-- Main Auth Container -->
+  <main class="pt-20 pb-6 flex items-center justify-center min-h-[90vh]">
+    <div class="bg-white border border-gray-300 p-6 w-[92%] max-w-sm space-y-4">
+      <div class="text-center mb-6">
+        <div class="text-xl font-semibold mb-2">Welcome to Ruby</div>
+        <div class="text-sm text-gray-600">Manage your leads efficiently</div>
+      </div>
+
+      <!-- Auth Form -->
+      <form id="auth-form" class="space-y-4">
+        <input id="email" type="email" placeholder="Email address" class="w-full border border-gray-300 px-3 py-2 text-sm" required />
+        <input id="password" type="password" placeholder="Password" class="w-full border border-gray-300 px-3 py-2 text-sm" required />
+        
+        <button type="submit" id="submit-btn" class="w-full border border-black bg-black text-white px-4 py-2 text-sm">
+          Sign In
+        </button>
+      </form>
+
+      <!-- Toggle Mode Button -->
+      <div class="text-center">
+        <button id="toggle-mode" class="text-sm text-gray-600 underline">
+          Don't have an account? Sign up
+        </button>
+      </div>
+
+      <!-- Error Message -->
+      <div id="error-message" class="text-red-500 text-sm text-center hidden"></div>
+
+      <!-- Loading State -->
+      <div id="loading" class="text-center text-sm text-gray-500 hidden">
+        Processing...
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Supabase Configuration
+    const SUPABASE_URL = 'https://znjvipwcwauhshqoawsg.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuanZpcHdjd2F1aHNocW9hd3NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NzA3MTYsImV4cCI6MjA2OTU0NjcxNn0.OqcI8oPo35hppzKRlzCQMFPcFWU-ZhTdbE74i7aLebw';
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const authForm = document.getElementById("auth-form");
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const submitBtn = document.getElementById("submit-btn");
+    const toggleBtn = document.getElementById("toggle-mode");
+    const errorMessage = document.getElementById("error-message");
+    const loadingDiv = document.getElementById("loading");
+
+    let isSignUp = false;
+
+    // Check if user is already authenticated
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        window.location.href = 'index.html';
+      }
+    }
+
+    // Toggle between sign in and sign up
+    function toggleMode() {
+      isSignUp = !isSignUp;
+      submitBtn.textContent = isSignUp ? 'Sign Up' : 'Sign In';
+      toggleBtn.textContent = isSignUp ? 'Already have an account? Sign in' : 'Don\'t have an account? Sign up';
+      errorMessage.classList.add('hidden');
+    }
+
+    // Show/hide loading state
+    function showLoading(show) {
+      if (show) {
+        loadingDiv.classList.remove('hidden');
+        submitBtn.disabled = true;
+      } else {
+        loadingDiv.classList.add('hidden');
+        submitBtn.disabled = false;
+      }
+    }
+
+    // Show error message
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('hidden');
+    }
+
+    // Handle form submission
+    async function handleAuth(e) {
+      e.preventDefault();
+      
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      if (!email || !password) {
+        showError('Please enter both email and password');
+        return;
+      }
+
+      try {
+        showLoading(true);
+        errorMessage.classList.add('hidden');
+
+        if (isSignUp) {
+          // Sign up
+          const { data, error } = await supabase.auth.signUp({
+            email: email,
+            password: password
+          });
+
+          if (error) throw error;
+
+          if (data.user && !data.user.email_confirmed_at) {
+            showError('Please check your email to confirm your account');
+          } else {
+            window.location.href = 'index.html';
+          }
+        } else {
+          // Sign in
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+          });
+
+          if (error) throw error;
+
+          window.location.href = 'index.html';
+        }
+      } catch (error) {
+        console.error('Auth error:', error);
+        showError(error.message || 'Authentication failed. Please try again.');
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Event listeners
+    authForm.addEventListener('submit', handleAuth);
+    toggleBtn.addEventListener('click', toggleMode);
+
+    // Check authentication on page load
+    window.onload = () => {
+      checkAuth();
+    };
+  </script>
+</body>
+</html>
