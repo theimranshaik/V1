@@ -41,22 +41,37 @@ async function checkUserStatusAndRedirect() {
 
 async function checkUserSubscription(userId) {
     try {
-        // Check leads count directly from Supabase
+        // Check leads count and user status directly from Supabase
         const { data: leads, error } = await supabase
             .from('leads')
-            .select('*')
-            .eq('user_id', userId);
+            .select('isPremium, subscriptionExpiry')
+            .eq('user_id', userId)
+            .limit(1);
             
         if (error) throw error;
         
-        const leadsCount = leads ? leads.length : 0;
+        // Get user's premium status from the first lead record
+        const userRecord = leads && leads.length > 0 ? leads[0] : null;
+        const isPremium = userRecord ? userRecord.isPremium : false;
+        const subscriptionExpiry = userRecord ? userRecord.subscriptionExpiry : null;
         
-        // For now, assume all users are free (you'll need to add isPremium column)
-        const isPremium = false; // This should come from your database
+        // Count total leads for this user
+        const { data: allLeads, error: countError } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('user_id', userId);
+            
+        if (countError) throw countError;
+        
+        const leadsCount = allLeads ? allLeads.length : 0;
         
         // Check conditions for redirect
         if (!isPremium && leadsCount >= 3) {
             return { shouldRedirect: true, reason: 'free_user_limit' };
+        }
+        
+        if (isPremium && subscriptionExpiry && new Date(subscriptionExpiry) <= new Date()) {
+            return { shouldRedirect: true, reason: 'premium_expired' };
         }
         
         return { shouldRedirect: false };
