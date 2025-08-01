@@ -52,7 +52,7 @@ async function checkUserSubscription(userId) {
         const subscriptionExpiry = data.subscriptionExpiry;
         
         // Check conditions for redirect
-        if (!isPremium && leadsCount >= 30) {
+        if (!isPremium && leadsCount >= 3) {
             return { shouldRedirect: true, reason: 'free_user_limit' };
         }
         
